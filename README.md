@@ -36,14 +36,14 @@ A highly scalable, distributed notification system built with microservices arch
 - 🔄 **Multi-Channel Support** - Email, Push notifications, and more
 - 🛡️ **Resilience** - Built-in circuit breakers, retries, and idempotency
 - 📊 **Full Observability** - Metrics, logs, and distributed tracing
-- 🔌 **Event-Driven** - Kafka-based message streaming
+- 🔌 **Event-Driven** - RabbitMQ-based message streaming
 - 🐳 **Container-Ready** - Fully dockerized for easy deployment
 
 ---
 
 ## 🏗️ Architecture
 
-This system follows a microservices architecture pattern with event-driven communication, leveraging Apache Kafka for reliable message streaming and Redis for caching and session management.
+This system follows a microservices architecture pattern with event-driven communication, leveraging RabbitMQ for reliable message streaming and Redis for caching and session management.
 
 ---
 
@@ -61,7 +61,7 @@ notification-system/
 │   ├── push_service/            # Push notification handler
 │
 ├── 🏢 infra/
-│   ├── kafka/                   # Message broker configuration
+│   ├── rabbitmq/                # Message broker configuration
 │   ├── redis/                   # Caching & session store
 │   ├── postgres/                # Primary database
 │   ├── nginx/                   # Load balancer & reverse proxy
@@ -111,7 +111,7 @@ notification-system/
 ## 🏢 Infrastructure
 
 ### Message Broker
-- **Apache Kafka** - Event streaming platform for real-time data pipelines
+- **RabbitMQ** - Reliable message broker for asynchronous communication
 
 ### Data Storage
 - **PostgreSQL** - Primary relational database
@@ -148,7 +148,7 @@ notification-system/
 
 - Docker & Docker Compose
 - Node.js (v18+) or Python (v3.10+)
-- Kafka & Zookeeper
+- RabbitMQ
 - PostgreSQL
 - Redis
 
