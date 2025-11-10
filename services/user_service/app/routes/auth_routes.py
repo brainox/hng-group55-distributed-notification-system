@@ -16,7 +16,6 @@ async def get_db():
 
 @router.post("/register", response_model=dict)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # check if email already exists
     result = await db.execute(select(User).where(User.email == payload.email))
     existing = result.scalar_one_or_none()
     if existing:
@@ -25,14 +24,13 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     new_user = User(
         full_name=payload.name,
         email=payload.email,
-        password_hash=hash_password(payload.password),
+        password_hash=hash_password(payload.password),  # safe hashing
     )
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
 
     return response(True, data=UserOut.from_orm(new_user).dict(), message="User registered successfully")
-
 
 @router.post("/login", response_model=dict)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):

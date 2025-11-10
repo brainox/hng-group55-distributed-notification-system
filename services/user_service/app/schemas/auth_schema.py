@@ -1,11 +1,13 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr,Field
+from typing import Optional,Annotated
+
+
 
 
 class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: Annotated[str, Field(min_length=6, max_length=72)]
     push_token: Optional[str] = None
     preferences: Optional["UserPreference"] = None  # reference to below
 
