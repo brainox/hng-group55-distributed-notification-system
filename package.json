@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "init-queues": "node --loader ts-node/esm infra/rabbitmq/init-rabbitmq.ts",
+    "init-queues": "node infra/rabbitmq/init-rabbitmq.js",
     "infra:up": "docker-compose up -d",
     "infra:down": "docker-compose down",
     "infra:logs": "docker-compose logs -f"
