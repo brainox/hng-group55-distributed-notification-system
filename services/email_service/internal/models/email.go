@@ -4,14 +4,19 @@ import "time"
 
 // EmailMessage represents a message from the queue
 type EmailMessage struct {
-	ID            string                 `json:"id"`
-	CorrelationID string                 `json:"correlation_id"`
-	Recipient     string                 `json:"recipient"`
-	TemplateID    string                 `json:"template_id"`
-	Variables     map[string]interface{} `json:"variables"`
-	Priority      string                 `json:"priority"`
-	RetryCount    int                    `json:"retry_count"`
-	ScheduledAt   time.Time              `json:"scheduled_at"`
+	NotificationID   string                 `json:"notification_id"`
+	NotificationType string                 `json:"notification_type"`
+	UserID           string                 `json:"user_id"`
+	Recipient        string                 `json:"recipient"`
+	Subject          string                 `json:"subject"`
+	Body             string                 `json:"body"`
+	TemplateCode     string                 `json:"template_code"`
+	Variables        map[string]interface{} `json:"variables"`
+	Priority         int                    `json:"priority"`
+	Metadata         struct {
+		Timestamp  string `json:"timestamp"`
+		RetryCount int    `json:"retry_count"`
+	} `json:"metadata"`
 }
 
 // EmailTemplate represents template data from Template Service
@@ -24,8 +29,8 @@ type EmailTemplate struct {
 // StatusMessage represents a status update message
 type StatusMessage struct {
 	NotificationID string    `json:"notification_id"`
-	CorrelationID  string    `json:"correlation_id"`
-	Status         string    `json:"status"` // "sent" or "failed"
+	UserID         string    `json:"user_id"`
+	Status         string    `json:"status"` // "sent", "delivered", "failed"
 	Timestamp      time.Time `json:"timestamp"`
 	Error          string    `json:"error,omitempty"`
 	Provider       string    `json:"provider"`

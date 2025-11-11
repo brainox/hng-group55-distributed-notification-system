@@ -3,8 +3,8 @@ services:
     image: rabbitmq:3-management
     container_name: notification-rabbitmq
     ports:
-      - "5672:5672"      # AMQP port
-      - "15672:15672"    # Management UI
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -34,7 +34,6 @@ services:
     networks:
       - notification-network
 
-
   rabbitmq-init:
     image: node:18-alpine
     container_name: notification-rabbitmq-init
@@ -57,8 +56,93 @@ services:
         condition: service_healthy
     networks:
       - notification-network
-    restart: "no"  # Only run once
+    restart: "no" # Only run once
 
+  # PostgreSQL for Template Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: notification-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: template_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-network
+
+  # Template Service
+  template-service:
+    build:
+      context: ./services/template_service
+      dockerfile: Dockerfile
+    container_name: notification-template-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - LOG_LEVEL=info
+      - ENV=production
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/template_db?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - CACHE_TTL=600
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+  # Email Service
+  email-service:
+    build:
+      context: ./services/email_service
+      dockerfile: Dockerfile
+    container_name: notification-email-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVER_PORT=8082
+      - LOG_LEVEL=info
+      - ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - EMAIL_QUEUE=email.queue
+      - STATUS_QUEUE=email.status
+      - EMAIL_WORKERS=3
+      - TEMPLATE_SERVICE_URL=http://template-service:8081
+      - REDIS_URL=redis://redis:6379
+      # Email Provider - Using SMTP (configure with your credentials)
+      - EMAIL_PROVIDER=smtp
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-your-email@gmail.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-your-app-password}
+      - SMTP_FROM=${SMTP_FROM:-noreply@yourcompany.com}
+      # Retry Configuration
+      - MAX_RETRY_ATTEMPTS=5
+      - RETRY_BASE_DELAY=1s
+      # Circuit Breaker
+      - CIRCUIT_BREAKER_THRESHOLD=5
+      - CIRCUIT_BREAKER_TIMEOUT=30s
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      template-service:
+        condition: service_started
+    networks:
+      - notification-network
+    restart: unless-stopped
 
   api-gateway:
     build:
@@ -73,12 +157,14 @@ services:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
       - REDIS_URL=redis://redis:6379
       - USER_SERVICE_URL=http://user-service:3001
-      - TEMPLATE_SERVICE_URL=http://template-service:3002
+      - TEMPLATE_SERVICE_URL=http://template-service:8081
     depends_on:
       rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
+      template-service:
+        condition: service_started
     networks:
       - notification-network
     restart: unless-stopped
@@ -86,8 +172,9 @@ services:
 volumes:
   rabbitmq-data:
   redis-data:
+  postgres-data:
+
 
 networks:
   notification-network:
     driver: bridge
-

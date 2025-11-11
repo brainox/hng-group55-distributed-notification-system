@@ -160,19 +160,19 @@ func (c *Consumer) processMessage(delivery amqp.Delivery) {
 	}
 
 	logger.Log.Info("processing email",
-		zap.String("id", emailMsg.ID),
-		zap.String("correlation_id", emailMsg.CorrelationID),
+		zap.String("notification_id", emailMsg.NotificationID),
+		zap.String("user_id", emailMsg.UserID),
 		zap.String("recipient", emailMsg.Recipient),
-		zap.String("template_id", emailMsg.TemplateID),
+		zap.String("template_code", emailMsg.TemplateCode),
 	)
 
 	// Check idempotency
-	processed, err := c.idempotency.IsProcessed(c.ctx, emailMsg.ID)
+	processed, err := c.idempotency.IsProcessed(c.ctx, emailMsg.NotificationID)
 	if err != nil {
 		logger.Log.Error("failed to check idempotency", zap.Error(err))
 	}
 	if processed {
-		logger.Log.Info("message already processed", zap.String("id", emailMsg.ID))
+		logger.Log.Info("message already processed", zap.String("notification_id", emailMsg.NotificationID))
 		delivery.Ack(false)
 		return
 	}
@@ -183,11 +183,11 @@ func (c *Consumer) processMessage(delivery amqp.Delivery) {
 	if err != nil {
 		logger.Log.Error("failed to process email after retries",
 			zap.Error(err),
-			zap.String("id", emailMsg.ID),
+			zap.String("notification_id", emailMsg.NotificationID),
 		)
 
 		// Publish failed status
-		c.publishStatus(emailMsg.ID, emailMsg.CorrelationID, "failed", err.Error())
+		c.publishStatus(emailMsg.NotificationID, emailMsg.UserID, "failed", err.Error())
 
 		// Don't requeue - message goes to DLQ or is discarded
 		delivery.Nack(false, false)
@@ -195,18 +195,18 @@ func (c *Consumer) processMessage(delivery amqp.Delivery) {
 	}
 
 	// Mark as processed
-	if err := c.idempotency.MarkProcessed(c.ctx, emailMsg.ID); err != nil {
+	if err := c.idempotency.MarkProcessed(c.ctx, emailMsg.NotificationID); err != nil {
 		logger.Log.Error("failed to mark as processed", zap.Error(err))
 	}
 
 	// Publish success status
-	c.publishStatus(emailMsg.ID, emailMsg.CorrelationID, "sent", "")
+	c.publishStatus(emailMsg.NotificationID, emailMsg.UserID, "sent", "")
 
 	// Acknowledge message
 	delivery.Ack(false)
 
 	logger.Log.Info("email sent successfully",
-		zap.String("id", emailMsg.ID),
+		zap.String("notification_id", emailMsg.NotificationID),
 		zap.String("recipient", emailMsg.Recipient),
 	)
 }
@@ -217,7 +217,7 @@ func (c *Consumer) processWithRetry(emailMsg *models.EmailMessage) error {
 
 	for attempt := 0; attempt <= maxAttempts; attempt++ {
 		if attempt > 0 {
-			c.retryHandler.Wait(attempt-1, emailMsg.CorrelationID)
+			c.retryHandler.Wait(attempt-1, emailMsg.NotificationID)
 		}
 
 		err := c.processEmail(emailMsg)
@@ -231,7 +231,7 @@ func (c *Consumer) processWithRetry(emailMsg *models.EmailMessage) error {
 			logger.Log.Warn("not retrying",
 				zap.Error(err),
 				zap.Int("attempt", attempt),
-				zap.String("correlation_id", emailMsg.CorrelationID),
+				zap.String("notification_id", emailMsg.NotificationID),
 			)
 			break
 		}
@@ -239,7 +239,7 @@ func (c *Consumer) processWithRetry(emailMsg *models.EmailMessage) error {
 		logger.Log.Warn("retrying after error",
 			zap.Error(err),
 			zap.Int("attempt", attempt),
-			zap.String("correlation_id", emailMsg.CorrelationID),
+			zap.String("notification_id", emailMsg.NotificationID),
 		)
 	}
 
@@ -247,26 +247,46 @@ func (c *Consumer) processWithRetry(emailMsg *models.EmailMessage) error {
 }
 
 func (c *Consumer) processEmail(emailMsg *models.EmailMessage) error {
-	// Fetch template
-	tmpl, err := c.templateClient.FetchTemplate(c.ctx, emailMsg.TemplateID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch template: %w", err)
-	}
+	var subject, body string
 
-	// Render subject
-	subject, err := template.RenderTemplate(tmpl.Subject, emailMsg.Variables)
-	if err != nil {
-		return fmt.Errorf("failed to render subject: %w", err)
-	}
+	// Check if message already contains rendered content (from API Gateway)
+	if emailMsg.Subject != "" && emailMsg.Body != "" {
+		// Use pre-rendered content
+		subject = emailMsg.Subject
+		body = emailMsg.Body
 
-	// Render body
-	body, err := template.RenderTemplate(tmpl.Body, emailMsg.Variables)
-	if err != nil {
-		return fmt.Errorf("failed to render body: %w", err)
+		logger.Log.Info("using pre-rendered content from API Gateway",
+			zap.String("notification_id", emailMsg.NotificationID),
+		)
+	} else {
+		// Fallback: Fetch and render template
+		tmpl, err := c.templateClient.FetchTemplate(c.ctx, emailMsg.TemplateCode)
+		if err != nil {
+			return fmt.Errorf("failed to fetch template: %w", err)
+		}
+
+		// Render subject
+		renderedSubject, err := template.RenderTemplate(tmpl.Subject, emailMsg.Variables)
+		if err != nil {
+			return fmt.Errorf("failed to render subject: %w", err)
+		}
+		subject = renderedSubject
+
+		// Render body
+		renderedBody, err := template.RenderTemplate(tmpl.Body, emailMsg.Variables)
+		if err != nil {
+			return fmt.Errorf("failed to render body: %w", err)
+		}
+		body = renderedBody
+
+		logger.Log.Info("rendered template from Template Service",
+			zap.String("notification_id", emailMsg.NotificationID),
+			zap.String("template_code", emailMsg.TemplateCode),
+		)
 	}
 
 	// Send email with circuit breaker
-	_, err = c.circuitBreaker.Execute(func() (interface{}, error) {
+	_, err := c.circuitBreaker.Execute(func() (interface{}, error) {
 		return nil, c.emailSender.Send(emailMsg.Recipient, subject, body)
 	})
 
@@ -277,10 +297,10 @@ func (c *Consumer) processEmail(emailMsg *models.EmailMessage) error {
 	return nil
 }
 
-func (c *Consumer) publishStatus(notificationID, correlationID, status, errorMsg string) {
+func (c *Consumer) publishStatus(notificationID, userID, status, errorMsg string) {
 	statusMsg := models.StatusMessage{
 		NotificationID: notificationID,
-		CorrelationID:  correlationID,
+		UserID:         userID,
 		Status:         status,
 		Timestamp:      time.Now(),
 		Error:          errorMsg,
