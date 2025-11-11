@@ -10,7 +10,7 @@ export interface QueueMessage {
         name: string;
         link: string;
         meta?: Record<string, any>;
-    };    
+    };
     template_code: string;
     priority: number,
     metadata: {
