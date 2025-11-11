@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4} from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 import { QueueService } from 'src/queue/queue.service';
 import { RedisService } from 'src/redis/redis.service';
 import { CreateNotificationDto, NotificationType } from './dto/create-notification.dto';
@@ -13,7 +13,7 @@ export class NotificationsService {
     constructor(
         private readonly queueService: QueueService,
         private readonly redisService: RedisService,
-    ){}
+    ) { }
 
     async createNotification(dto: CreateNotificationDto) {
         const notificationId = uuidv4();
@@ -25,43 +25,29 @@ export class NotificationsService {
         // const user = await this.getUserFromService(dto.user_id);
         // recipient = dto.type === 'email' ? user.email : user.push_token;
         // For now, recipient is mocked
-        const recipient = dto.notification_type === NotificationType.EMAIL 
-        ? 'user@example.com' 
-        : 'fcm-token-mock-123';
+        const recipient = dto.notification_type === NotificationType.EMAIL
+            ? 'henshawknight@yahoo.com'
+            : 'fcm-token-mock-123';
 
         this.logger.warn('Using mock recipient - integrate User Service');
 
 
-        // TODO: Get template from Template Service
-        // const template = await this.getTemplateFromService(dto.template_id);
-        // Mock template for now
-        const mockTemplate = {
-            subject: dto.notification_type === 'email' ? 'Test Notification' : undefined,
-            title: dto.notification_type === 'push' ? 'Test Notification' : undefined,
-            body: 'Hello {{name}}, this is a test notification!',
-        };
+        // TODO: Get template from Template Service and render here
+        // For now, let Email Service fetch and render the template
+        // by NOT providing subject/body (only template_code and variables)
 
-
-        // Render template with variables
-        let renderedBody = mockTemplate.body;
-        if (dto.variables) {
-            Object.keys(dto.variables).forEach(key => {
-                renderedBody = renderedBody.replace(`{{${key}}}`, dto.variables[key]);
-            });
-        }
-
-
-        // Create queue message
+        // Create queue message without pre-rendered content
+        // Email Service will fetch template from Template Service
         const queueMessage: QueueMessage = {
             notification_id: notificationId,
             notification_type: dto.notification_type,
             user_id: dto.user_id,
             recipient,
-            subject: mockTemplate.subject,
-            title: mockTemplate.title,
-            body: renderedBody,
+            subject: undefined,  // Let Email Service fetch from Template Service
+            title: undefined,
+            body: undefined,     // Let Email Service render with variables
             template_code: dto.template_code,
-            variables: dto.variables,            
+            variables: dto.variables,
             priority: dto.priority || 1,
             metadata: {
                 timestamp: new Date().toISOString(),
@@ -72,9 +58,9 @@ export class NotificationsService {
 
         // Publish to appropriate queue
         if (dto.notification_type === 'email') {
-        await this.queueService.publishToEmailQueue(queueMessage);
+            await this.queueService.publishToEmailQueue(queueMessage);
         } else {
-        await this.queueService.publishToPushQueue(queueMessage);
+            await this.queueService.publishToPushQueue(queueMessage);
         }
 
         // Store status in Redis
@@ -103,7 +89,7 @@ export class NotificationsService {
 
         // Get existing notification data
         const existingData = await this.redisService.getNotificationStatus(dto.notification_id);
-        
+
         if (!existingData) {
             throw new NotFoundException(`Notification ${dto.notification_id} not found`);
         }
@@ -130,7 +116,7 @@ export class NotificationsService {
 
     async getNotificationStatus(notificationId: string) {
         const status = await this.redisService.getNotificationStatus(notificationId);
-        
+
         if (!status) {
             throw new NotFoundException(`Notification ${notificationId} not found`);
         }

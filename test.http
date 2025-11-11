@@ -1,0 +1,189 @@
+### Notification System API Tests
+### This file contains end-to-end tests for the notification system
+### Use with REST Client extension in VS Code or similar HTTP client
+
+### Variables
+@apiGateway = http://localhost:3000
+@templateService = http://localhost:8081
+@emailService = http://localhost:8082
+
+###############################################################################
+### 1. Health Checks
+###############################################################################
+
+### API Gateway Health
+GET {{apiGateway}}/api/v1/health
+
+### Template Service Health
+GET {{templateService}}/health
+
+### Email Service Health
+GET {{emailService}}/health
+
+###############################################################################
+### 2. Create Email Template
+###############################################################################
+
+### Create Welcome Email Template
+POST {{templateService}}/api/v1/templates
+Content-Type: application/json
+
+{
+  "template_key": "welcome",
+  "name": "Welcome Email",
+  "description": "Welcome email for new users",
+  "template_type": "email",
+  "subject": "Welcome {{name}} to Our Platform!",
+  "body": "Hello {{name}},\n\nThank you for joining us. Get started by visiting: {{link}}\n\nBest regards,\nThe Team",
+  "language": "en",
+  "is_active": true,
+  "metadata": {
+    "category": "onboarding",
+    "tags": ["welcome", "email"]
+  }
+}
+
+### Create Password Reset Template
+POST {{templateService}}/api/v1/templates
+Content-Type: application/json
+
+{
+  "template_key": "password_reset",
+  "name": "Password Reset Email",
+  "description": "Password reset instructions",
+  "template_type": "email",
+  "subject": "Reset Your Password",
+  "body": "Hi {{name}},\n\nClick the link below to reset your password:\n{{reset_link}}\n\nThis link expires in {{expiry_hours}} hours.",
+  "language": "en",
+  "is_active": true
+}
+
+### Get All Templates
+GET {{templateService}}/api/v1/templates?page=1&limit=10
+
+### Get Template by Key
+GET {{templateService}}/api/v1/templates/key/welcome
+
+###############################################################################
+### 3. Send Notifications via API Gateway
+###############################################################################
+
+### Send Email Notification with Template
+# This will fetch template from Template Service and send via Email Service
+# Note: recipient is determined from user_id (currently mocked in API Gateway)
+POST {{apiGateway}}/api/v1/notifications/send
+Content-Type: application/json
+
+{
+  "notification_type": "email",
+  "request_id": "test-001",
+  "user_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "template_code": "welcome",
+  "variables": {
+    "name": "John Doe",
+    "link": "https://yourapp.com/dashboard"
+  },
+  "priority": 1,
+  "metadata": {
+    "source": "rest_client_test",
+    "environment": "development"
+  }
+}
+
+### Send Email with Pre-rendered Content (No Template)
+# This sends email directly without fetching from Template Service
+POST {{apiGateway}}/api/v1/notifications/send
+Content-Type: application/json
+
+{
+  "notification_type": "email",
+  "request_id": "test-002",
+  "user_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "recipient": "your-email@example.com",
+  "subject": "Test Email - Pre-rendered",
+  "body": "This is a test email with pre-rendered content. No template needed!",
+  "priority": 1
+}
+
+### Send High Priority Notification
+POST {{apiGateway}}/api/v1/notifications/send
+Content-Type: application/json
+
+{
+  "notification_type": "email",
+  "request_id": "test-003",
+  "user_id": "test-user-123",
+  "recipient": "urgent@example.com",
+  "template_code": "password_reset",
+  "variables": {
+    "name": "Jane Smith",
+    "reset_link": "https://yourapp.com/reset/abc123",
+    "expiry_hours": "24"
+  },
+  "priority": 3,
+  "metadata": {
+    "urgent": true
+  }
+}
+
+### Send Bulk Notifications (Multiple)
+POST {{apiGateway}}/api/v1/notifications/send
+Content-Type: application/json
+
+{
+  "notification_type": "email",
+  "request_id": "test-004",
+  "user_id": "admin-user",
+  "recipient": "user1@example.com",
+  "template_code": "welcome",
+  "variables": {
+    "name": "Alice",
+    "link": "https://example.com"
+  },
+  "priority": 1
+}
+
+###
+POST {{apiGateway}}/api/v1/notifications/send
+Content-Type: application/json
+
+{
+  "notification_type": "email",
+  "request_id": "test-005",
+  "user_id": "admin-user",
+  "recipient": "user2@example.com",
+  "template_code": "welcome",
+  "variables": {
+    "name": "Bob",
+    "link": "https://example.com"
+  },
+  "priority": 1
+}
+
+###############################################################################
+### 4. Monitoring & Debugging
+###############################################################################
+
+### Check RabbitMQ Queues
+# Note: Requires RabbitMQ Management UI
+# http://localhost:15672 (guest/guest)
+
+### Get Notification Status (if status endpoint exists)
+# GET {{apiGateway}}/api/v1/notifications/status/{notification_id}
+
+###############################################################################
+### Notes
+###############################################################################
+
+# How to use this file:
+# 1. Install "REST Client" extension in VS Code
+# 2. Update @apiGateway, @templateService, @emailService URLs if needed
+# 3. Replace "your-email@example.com" with your actual test email
+# 4. Click "Send Request" above any ### request
+# 5. View response in the right panel
+#
+# Monitoring:
+# - Check logs: docker-compose logs -f email-service
+# - RabbitMQ UI: http://localhost:15672
+# - Email Service: http://localhost:8082/health
+# - Template Service: http://localhost:8081/health

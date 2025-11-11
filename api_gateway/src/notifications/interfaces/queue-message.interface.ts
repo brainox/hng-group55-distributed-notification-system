@@ -5,12 +5,12 @@ export interface QueueMessage {
     recipient: string;
     subject?: string;
     title?: string;
-    body: string;
+    body?: string;  // Optional - if not provided, Email Service fetches from Template Service
     variables: {
         name: string;
         link: string;
         meta?: Record<string, any>;
-    };    
+    };
     template_code: string;
     priority: number,
     metadata: {
