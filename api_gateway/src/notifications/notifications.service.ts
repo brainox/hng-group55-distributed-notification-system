@@ -26,40 +26,26 @@ export class NotificationsService {
         // recipient = dto.type === 'email' ? user.email : user.push_token;
         // For now, recipient is mocked
         const recipient = dto.notification_type === NotificationType.EMAIL 
-        ? 'user@example.com' 
+        ? 'sample@email.com' 
         : 'fcm-token-mock-123';
 
         this.logger.warn('Using mock recipient - integrate User Service');
 
 
-        // TODO: Get template from Template Service
-        // const template = await this.getTemplateFromService(dto.template_id);
-        // Mock template for now
-        const mockTemplate = {
-            subject: dto.notification_type === 'email' ? 'Test Notification' : undefined,
-            title: dto.notification_type === 'push' ? 'Test Notification' : undefined,
-            body: 'Hello {{name}}, this is a test notification!',
-        };
+        // TODO: Get template from Template Service and render here
+        // For now, let Email Service fetch and render the template
+        // by NOT providing subject/body (only template_code and variables)
 
-
-        // Render template with variables
-        let renderedBody = mockTemplate.body;
-        if (dto.variables) {
-            Object.keys(dto.variables).forEach(key => {
-                renderedBody = renderedBody.replace(`{{${key}}}`, dto.variables[key]);
-            });
-        }
-
-
-        // Create queue message
+        // Create queue message without pre-rendered content
+        // Email Service will fetch template from Template Service
         const queueMessage: QueueMessage = {
             notification_id: notificationId,
             notification_type: dto.notification_type,
             user_id: dto.user_id,
             recipient,
-            subject: mockTemplate.subject,
-            title: mockTemplate.title,
-            body: renderedBody,
+            subject: undefined,  // Let Email Service fetch from Template Service
+            title: undefined,
+            body: undefined,     // Let Email Service render with variables
             template_code: dto.template_code,
             variables: dto.variables,            
             priority: dto.priority || 1,

@@ -26,6 +26,9 @@ WORKDIR /root/
 # Copy the binary from builder
 COPY --from=builder /app/main .
 
+# Copy .env file for configuration defaults
+COPY --from=builder /app/.env .
+
 # Copy migrations
 COPY --from=builder /app/migrations ./migrations
 

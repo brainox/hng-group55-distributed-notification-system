@@ -119,12 +119,12 @@ services:
       - STATUS_QUEUE=email.status
       - EMAIL_WORKERS=3
       - TEMPLATE_SERVICE_URL=http://template-service:8081
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis:6379
       # Email Provider - Using SMTP (configure with your credentials)
       - EMAIL_PROVIDER=smtp
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER:-your-email@gmail.com}
+      - SMTP_USERNAME=${SMTP_USER:-your-email@gmail.com}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-your-app-password}
       - SMTP_FROM=${SMTP_FROM:-noreply@yourcompany.com}
       # Retry Configuration

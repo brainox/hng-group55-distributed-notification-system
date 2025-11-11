@@ -70,8 +70,9 @@ func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
 		return nil, fmt.Errorf("failed to set QoS: %w", err)
 	}
 
-	// Declare queue
-	_, err = channel.QueueDeclare(
+	// Use passive declaration to verify queue exists without modifying it
+	// Queue should already be created by rabbitmq-init with proper configuration
+	_, err = channel.QueueDeclarePassive(
 		cfg.QueueName,
 		true,  // durable
 		false, // delete when unused
@@ -82,7 +83,7 @@ func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
 	if err != nil {
 		channel.Close()
 		conn.Close()
-		return nil, fmt.Errorf("failed to declare queue: %w", err)
+		return nil, fmt.Errorf("failed to verify queue exists: %w (ensure rabbitmq-init has run)", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -24,47 +24,41 @@ Get the complete notification system running in under 5 minutes.
    ```bash
    # All services should be running
    docker-compose ps
-   
-   # Check health endpoints
-   curl http://localhost:3000/api/v1/health  # API Gateway
-   curl http://localhost:8081/health          # Template Service
-   curl http://localhost:8082/health          # Email Service
    ```
 
-4. **Create Template**:
+4. **Test the System**:
+   
+   Open `test.http` in VS Code with the REST Client extension installed:
+   
    ```bash
+   # Install REST Client extension in VS Code
+   # Search for "REST Client" by Huachao Mao
+   ```
+   
+   Then open `test.http` and run the requests:
+   
+   - **Step 1**: Click "Send Request" above "### API Gateway Health" to verify all services
+   - **Step 2**: Run "### Create Welcome Email Template" to create a template
+   - **Step 3**: Run "### Send Email Notification with Template" to send a test email
+   - **Step 4**: Update `your-email@example.com` with your real email address
+   
+   Alternative using curl:
+   ```bash
+   # Health check
+   curl http://localhost:3000/api/v1/health
+   
+   # Create template
    curl -X POST http://localhost:8081/api/v1/templates \
      -H "Content-Type: application/json" \
-     -d '{
-       "template_key": "welcome",
-       "name": "Welcome Email",
-       "template_type": "email",
-       "subject": "Welcome {{name}}!",
-       "body": "Hello {{name}}, visit {{link}}",
-       "language": "en",
-       "is_active": true
-     }'
-   ```
-
-5. **Send Notification**:
-   ```bash
+     -d '{"template_key":"welcome","name":"Welcome Email","template_type":"email","subject":"Welcome {{name}}!","body":"Hello {{name}}, visit {{link}}","language":"en","is_active":true}'
+   
+   # Send notification
    curl -X POST http://localhost:3000/api/v1/notifications/send \
      -H "Content-Type: application/json" \
-     -d '{
-       "notification_type": "email",
-       "request_id": "test-001",
-       "user_id": "test-user",
-       "recipient": "your-email@example.com",
-       "template_code": "welcome",
-       "variables": {
-         "name": "John",
-         "link": "https://example.com"
-       },
-       "priority": 1
-     }'
+     -d '{"notification_type":"email","request_id":"test-001","user_id":"test-user","recipient":"your-email@example.com","template_code":"welcome","variables":{"name":"John","link":"https://example.com"},"priority":1}'
    ```
 
-6. **Monitor Processing**:
+5. **Monitor Processing**:
    ```bash
    docker-compose logs -f email-service
    ```

@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -25,6 +25,9 @@ WORKDIR /root/
 
 # Copy the binary from builder
 COPY --from=builder /app/main .
+
+# Copy .env file for configuration defaults
+COPY --from=builder /app/.env .
 
 # Expose port
 EXPOSE 8082

@@ -3,7 +3,7 @@
 .gitignore
 
 # Environment
-.env
+# .env is included for Docker container defaults
 .env.local
 .env.*.local
 

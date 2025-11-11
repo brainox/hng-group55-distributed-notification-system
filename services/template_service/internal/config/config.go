@@ -36,12 +36,14 @@ func Load() (*Config, error) {
 	viper.SetConfigFile(".env")
 	viper.AutomaticEnv()
 
-	// Allow reading from environment variables if .env file doesn't exist
+	// Try to read .env file, but don't fail if it doesn't exist
+	// Environment variables take precedence
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Only return error if it's not a "file not found" error
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
-		// Config file not found; rely on environment variables
+		// File not found is OK - we'll use environment variables
 	}
 
 	config := &Config{
