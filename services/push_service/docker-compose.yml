@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:4.0.9-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  push_api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - rabbitmq
+
+  push_worker:
+    build: .
+    command: python -m app.consumer
+    depends_on:
+      - rabbitmq
