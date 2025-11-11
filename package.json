@@ -1,0 +1,19 @@
+{
+  "name": "notification-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "init-queues": "node infra/rabbitmq/init-rabbitmq.js",
+    "infra:up": "docker-compose up -d",
+    "infra:down": "docker-compose down",
+    "infra:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "amqplib": "^0.10.3",
+    "@types/amqplib": "^0.10.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2",
+    "@types/node": "^20.0.0"
+  }
+}
