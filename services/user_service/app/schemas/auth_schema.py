@@ -1,7 +1,11 @@
-from pydantic import BaseModel, EmailStr,Field
-from typing import Optional,Annotated
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, Annotated
+from uuid import UUID
 
 
+class UserPreference(BaseModel):
+    email: bool = True
+    push: bool = True
 
 
 class RegisterRequest(BaseModel):
@@ -9,7 +13,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: Annotated[str, Field(min_length=6, max_length=72)]
     push_token: Optional[str] = None
-    preferences: Optional["UserPreference"] = None  # reference to below
+    preferences: Optional[UserPreference] = None
 
 
 class LoginRequest(BaseModel):
@@ -22,17 +26,14 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class UserPreference(BaseModel):
-    email: bool = True
-    push: bool = True
-
-
 class UserOut(BaseModel):
-    user_id: str
-    name: str
+    user_id: UUID
+    name: str = Field(alias="full_name")
     email: EmailStr
     push_token: Optional[str] = None
     preferences: Optional[UserPreference] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True
+    }

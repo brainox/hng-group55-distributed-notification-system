@@ -16,21 +16,29 @@ async def get_db():
 
 @router.post("/register", response_model=dict)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email))
-    existing = result.scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        result = await db.execute(select(User).where(User.email == payload.email))
+        existing = result.scalar_one_or_none()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    new_user = User(
-        full_name=payload.name,
-        email=payload.email,
-        password_hash=hash_password(payload.password),  # safe hashing
-    )
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
+        new_user = User(
+            full_name=payload.name,
+            email=payload.email,
+            password_hash=hash_password(payload.password),
+            push_token=payload.push_token,
+            preferences=payload.preferences.dict() if payload.preferences else {"email": True, "push": True}
+        )
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
 
-    return response(True, data=UserOut.from_orm(new_user).dict(), message="User registered successfully")
+        return response(True, data=UserOut.from_orm(new_user).dict(), message="User registered successfully")
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
 
 @router.post("/login", response_model=dict)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
