@@ -1,0 +1,252 @@
+### Template Service API Tests
+### Base URL
+@baseUrl = http://localhost:8081
+@contentType = application/json
+
+###############################################################################
+### Health Check
+###############################################################################
+
+### Health Check
+GET {{baseUrl}}/health
+
+###############################################################################
+### Template Management
+###############################################################################
+
+### Create Template (Email - Welcome)
+POST {{baseUrl}}/api/v1/templates
+Content-Type: {{contentType}}
+
+{
+  "template_key": "welcome_email",
+  "name": "Welcome Email",
+  "description": "Welcome email sent to new users",
+  "template_type": "email",
+  "subject": "Welcome to {{company_name}}, {{user_name}}!",
+  "body": "<html><body><h1>Welcome {{user_name}}!</h1><p>Thank you for joining {{company_name}}. We're excited to have you on board.</p><p>Your account email is: {{email}}</p></body></html>",
+  "language": "en",
+  "variables": ["user_name", "company_name", "email"]
+}
+
+### Create Template (Email - Password Reset)
+POST {{baseUrl}}/api/v1/templates
+Content-Type: {{contentType}}
+
+{
+  "template_key": "password_reset",
+  "name": "Password Reset Email",
+  "description": "Password reset instructions",
+  "template_type": "email",
+  "subject": "Reset Your Password for {{company_name}}",
+  "body": "<html><body><h1>Password Reset Request</h1><p>Hi {{user_name}},</p><p>Click the link below to reset your password:</p><a href='{{reset_link}}'>Reset Password</a><p>This link expires in {{expiry_hours}} hours.</p></body></html>",
+  "language": "en",
+  "variables": ["user_name", "company_name", "reset_link", "expiry_hours"]
+}
+
+### Create Template (SMS)
+POST {{baseUrl}}/api/v1/templates
+Content-Type: {{contentType}}
+
+{
+  "template_key": "otp_sms",
+  "name": "OTP SMS",
+  "description": "One-time password for verification",
+  "template_type": "sms",
+  "body": "Your {{company_name}} verification code is: {{otp}}. Valid for {{expiry_minutes}} minutes.",
+  "language": "en",
+  "variables": ["company_name", "otp", "expiry_minutes"]
+}
+
+### Get All Templates (with pagination)
+GET {{baseUrl}}/api/v1/templates?page=1&limit=10
+
+### Get All Templates (filter by type)
+GET {{baseUrl}}/api/v1/templates?type=email&page=1&limit=10
+
+### Get All Templates (search)
+GET {{baseUrl}}/api/v1/templates?search=welcome&page=1&limit=10
+
+### Get Template by ID
+# Replace {template_id} with actual UUID from create response
+GET {{baseUrl}}/api/v1/templates/{template_id}
+
+### Get Template by ID with specific language and version
+GET {{baseUrl}}/api/v1/templates/{template_id}?language=en&version=latest
+
+### Get Template by Key
+GET {{baseUrl}}/api/v1/templates/key/welcome_email
+
+### Get Template by Key with language
+GET {{baseUrl}}/api/v1/templates/key/welcome_email?language=en&version=latest
+
+### Update Template
+# Replace {template_id} with actual UUID
+PUT {{baseUrl}}/api/v1/templates/{template_id}
+Content-Type: {{contentType}}
+
+{
+  "name": "Welcome Email - Updated",
+  "description": "Updated welcome email template",
+  "is_active": true
+}
+
+### Deactivate Template (Soft Delete)
+# Replace {template_id} with actual UUID
+DELETE {{baseUrl}}/api/v1/templates/{template_id}
+
+###############################################################################
+### Template Versioning
+###############################################################################
+
+### Create New Version
+# Replace {template_id} with actual UUID
+POST {{baseUrl}}/api/v1/templates/{template_id}/versions
+Content-Type: {{contentType}}
+
+{
+  "language": "en",
+  "subject": "Welcome aboard, {{user_name}}!",
+  "body": "<html><body><h1>Hi {{user_name}}!</h1><p>Welcome to {{company_name}}! We're thrilled to have you.</p><p>Contact: {{email}}</p><footer>Best regards, The {{company_name}} Team</footer></body></html>",
+  "variables": ["user_name", "company_name", "email"]
+}
+
+### Create Version for Different Language
+# Replace {template_id} with actual UUID
+POST {{baseUrl}}/api/v1/templates/{template_id}/versions
+Content-Type: {{contentType}}
+
+{
+  "language": "es",
+  "subject": "¡Bienvenido a {{company_name}}, {{user_name}}!",
+  "body": "<html><body><h1>¡Bienvenido {{user_name}}!</h1><p>Gracias por unirte a {{company_name}}. Estamos emocionados de tenerte a bordo.</p><p>Tu correo: {{email}}</p></body></html>",
+  "variables": ["user_name", "company_name", "email"]
+}
+
+### Get Version History
+# Replace {template_id} with actual UUID
+GET {{baseUrl}}/api/v1/templates/{template_id}/versions
+
+### Publish Version
+# Replace {template_id} and {version_id} with actual UUIDs
+POST {{baseUrl}}/api/v1/templates/{template_id}/versions/{version_id}/publish
+
+###############################################################################
+### Template Validation & Preview
+###############################################################################
+
+### Validate Template
+POST {{baseUrl}}/api/v1/templates/validate
+Content-Type: {{contentType}}
+
+{
+  "template_key": "welcome_email",
+  "variables": {
+    "user_name": "John Doe",
+    "company_name": "Acme Corp",
+    "email": "john@example.com"
+  }
+}
+
+### Validate Template (Missing Variables)
+POST {{baseUrl}}/api/v1/templates/validate
+Content-Type: {{contentType}}
+
+{
+  "template_key": "welcome_email",
+  "variables": {
+    "user_name": "John Doe"
+  }
+}
+
+### Preview Template
+# Replace {template_id} with actual UUID
+POST {{baseUrl}}/api/v1/templates/{template_id}/preview
+Content-Type: {{contentType}}
+
+{
+  "version_id": "{version_id}",
+  "variables": {
+    "user_name": "Jane Smith",
+    "company_name": "Tech Innovations",
+    "email": "jane@example.com"
+  }
+}
+
+###############################################################################
+### Test Scenarios
+###############################################################################
+
+### Scenario 1: Complete Template Creation Flow
+# 1. Create template
+POST {{baseUrl}}/api/v1/templates
+Content-Type: {{contentType}}
+
+{
+  "template_key": "order_confirmation",
+  "name": "Order Confirmation",
+  "description": "Sent when order is confirmed",
+  "template_type": "email",
+  "subject": "Order #{{order_id}} Confirmed",
+  "body": "<html><body><h1>Order Confirmed!</h1><p>Hi {{customer_name}},</p><p>Your order #{{order_id}} for {{product_name}} has been confirmed.</p><p>Total: ${{total_amount}}</p></body></html>",
+  "language": "en"
+}
+
+### Scenario 2: Create Multiple Versions
+# Use template_id from above, create v2
+POST {{baseUrl}}/api/v1/templates/{template_id}/versions
+Content-Type: {{contentType}}
+
+{
+  "language": "en",
+  "subject": "Your Order #{{order_id}} is Confirmed!",
+  "body": "<html><body><h1>Thank You!</h1><p>Dear {{customer_name}},</p><p>Order #{{order_id}} confirmed</p><p>Product: {{product_name}}</p><p>Amount: ${{total_amount}}</p><p>Estimated delivery: {{delivery_date}}</p></body></html>",
+  "variables": ["customer_name", "order_id", "product_name", "total_amount", "delivery_date"]
+}
+
+### Scenario 3: Publish the New Version
+POST {{baseUrl}}/api/v1/templates/{template_id}/versions/{version_id}/publish
+
+### Scenario 4: Preview Before Publishing
+POST {{baseUrl}}/api/v1/templates/{template_id}/preview
+Content-Type: {{contentType}}
+
+{
+  "version_id": "{version_id}",
+  "variables": {
+    "customer_name": "Alice Johnson",
+    "order_id": "ORD-12345",
+    "product_name": "Wireless Headphones",
+    "total_amount": "99.99",
+    "delivery_date": "November 15, 2025"
+  }
+}
+
+###############################################################################
+### Error Cases
+###############################################################################
+
+### Invalid Template Key (Not Found)
+GET {{baseUrl}}/api/v1/templates/key/non_existent_template
+
+### Invalid Template ID Format
+GET {{baseUrl}}/api/v1/templates/invalid-uuid-format
+
+### Create Template with Missing Required Fields
+POST {{baseUrl}}/api/v1/templates
+Content-Type: {{contentType}}
+
+{
+  "name": "Incomplete Template"
+}
+
+### Create Template with Invalid Type
+POST {{baseUrl}}/api/v1/templates
+Content-Type: {{contentType}}
+
+{
+  "template_key": "test",
+  "name": "Test",
+  "template_type": "invalid_type",
+  "body": "Test body"
+}

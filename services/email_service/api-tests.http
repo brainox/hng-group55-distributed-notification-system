@@ -1,0 +1,396 @@
+### Email Service API Tests
+### Base URL
+@baseUrl = http://localhost:8082
+@contentType = application/json
+
+###############################################################################
+### Health Check
+###############################################################################
+
+### Health Check
+GET {{baseUrl}}/health
+
+###############################################################################
+### Email Service Notes
+###############################################################################
+
+# The Email Service is a RabbitMQ consumer that processes email messages
+# from the "email.queue" queue. It does not expose REST API endpoints
+# for sending emails directly. Instead, it:
+#
+# 1. Listens to RabbitMQ queue: "email.queue"
+# 2. Processes email messages in the background
+# 3. Publishes status updates to: "notification.status.queue"
+#
+# To test email sending functionality:
+# 1. Ensure RabbitMQ is running
+# 2. Start the Email Service
+# 3. Publish a message to "email.queue" using the format below
+# 4. Monitor logs or "notification.status.queue" for results
+
+###############################################################################
+### RabbitMQ Message Format Examples
+###############################################################################
+
+### Example Email Message Structure (to be published to RabbitMQ email.queue)
+# This is NOT an HTTP request - it's the message format to publish to RabbitMQ
+# Use RabbitMQ Management UI or a RabbitMQ client to publish this message
+
+# Message to email.queue:
+# {
+#   "id": "550e8400-e29b-41d4-a716-446655440000",
+#   "correlation_id": "req-12345-67890",
+#   "recipient": "user@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "John Doe",
+#     "company_name": "Acme Corp",
+#     "email": "john@example.com"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T10:00:00Z"
+# }
+
+###############################################################################
+### Testing with RabbitMQ Management UI
+###############################################################################
+
+# Access RabbitMQ Management UI at: http://localhost:15672
+# Default credentials: guest/guest
+#
+# Steps to test:
+# 1. Go to "Queues" tab
+# 2. Click on "email.queue"
+# 3. Expand "Publish message" section
+# 4. Set Delivery mode: 2 - Persistent
+# 5. Set Content-Type: application/json
+# 6. Paste message in Payload field (see examples below)
+# 7. Click "Publish message"
+# 8. Check Email Service logs for processing
+# 9. Check "notification.status.queue" for status updates
+
+###############################################################################
+### Test Message Examples for RabbitMQ
+###############################################################################
+
+### Test 1: Welcome Email
+# Publish this to email.queue via RabbitMQ Management UI
+# {
+#   "id": "msg-001",
+#   "correlation_id": "test-welcome-001",
+#   "recipient": "newuser@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "Alice Johnson",
+#     "company_name": "Tech Innovations",
+#     "email": "alice@example.com"
+#   },
+#   "priority": "high",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T10:00:00Z"
+# }
+
+### Test 2: Password Reset Email
+# {
+#   "id": "msg-002",
+#   "correlation_id": "test-password-002",
+#   "recipient": "user@example.com",
+#   "template_id": "password_reset",
+#   "variables": {
+#     "user_name": "Bob Smith",
+#     "company_name": "Acme Corp",
+#     "reset_link": "https://example.com/reset?token=abc123",
+#     "expiry_hours": "24"
+#   },
+#   "priority": "high",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T10:05:00Z"
+# }
+
+### Test 3: Order Confirmation Email
+# {
+#   "id": "msg-003",
+#   "correlation_id": "test-order-003",
+#   "recipient": "customer@example.com",
+#   "template_id": "order_confirmation",
+#   "variables": {
+#     "customer_name": "Jane Doe",
+#     "order_id": "ORD-12345",
+#     "product_name": "Wireless Headphones",
+#     "total_amount": "99.99",
+#     "delivery_date": "November 15, 2025"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T10:10:00Z"
+# }
+
+### Test 4: Multiple Recipients (Batch Test)
+# Publish multiple messages to test worker pool
+# Message 1:
+# {
+#   "id": "msg-batch-001",
+#   "correlation_id": "batch-test-001",
+#   "recipient": "user1@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "User One",
+#     "company_name": "Test Corp",
+#     "email": "user1@example.com"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T11:00:00Z"
+# }
+
+# Message 2:
+# {
+#   "id": "msg-batch-002",
+#   "correlation_id": "batch-test-002",
+#   "recipient": "user2@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "User Two",
+#     "company_name": "Test Corp",
+#     "email": "user2@example.com"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T11:01:00Z"
+# }
+
+# Message 3:
+# {
+#   "id": "msg-batch-003",
+#   "correlation_id": "batch-test-003",
+#   "recipient": "user3@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "User Three",
+#     "company_name": "Test Corp",
+#     "email": "user3@example.com"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T11:02:00Z"
+# }
+
+###############################################################################
+### Expected Status Messages (from notification.status.queue)
+###############################################################################
+
+# Success Status Message:
+# {
+#   "notification_id": "msg-001",
+#   "correlation_id": "test-welcome-001",
+#   "status": "sent",
+#   "timestamp": "2025-11-11T10:00:05Z",
+#   "error": "",
+#   "provider": "smtp"
+# }
+
+# Failed Status Message:
+# {
+#   "notification_id": "msg-002",
+#   "correlation_id": "test-password-002",
+#   "status": "failed",
+#   "timestamp": "2025-11-11T10:05:10Z",
+#   "error": "failed to send email: connection refused",
+#   "provider": "smtp"
+# }
+
+###############################################################################
+### Error Test Cases
+###############################################################################
+
+### Test 5: Invalid Template ID
+# {
+#   "id": "msg-error-001",
+#   "correlation_id": "test-error-001",
+#   "recipient": "user@example.com",
+#   "template_id": "non_existent_template",
+#   "variables": {
+#     "user_name": "Test User"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T12:00:00Z"
+# }
+# Expected: Failed with "template not found" error
+
+### Test 6: Missing Required Variables
+# {
+#   "id": "msg-error-002",
+#   "correlation_id": "test-error-002",
+#   "recipient": "user@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "Test User"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T12:05:00Z"
+# }
+# Expected: Failed with "missing required variables: [company_name, email]"
+
+### Test 7: Invalid Email Address
+# {
+#   "id": "msg-error-003",
+#   "correlation_id": "test-error-003",
+#   "recipient": "invalid-email",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "Test User",
+#     "company_name": "Test Corp",
+#     "email": "test@example.com"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T12:10:00Z"
+# }
+# Expected: Failed with SMTP error
+
+### Test 8: Duplicate Message ID (Idempotency Test)
+# Publish the same message twice with the same ID
+# {
+#   "id": "msg-idempotent-001",
+#   "correlation_id": "test-idempotent-001",
+#   "recipient": "user@example.com",
+#   "template_id": "welcome_email",
+#   "variables": {
+#     "user_name": "Test User",
+#     "company_name": "Test Corp",
+#     "email": "test@example.com"
+#   },
+#   "priority": "normal",
+#   "retry_count": 0,
+#   "scheduled_at": "2025-11-11T13:00:00Z"
+# }
+# Expected: First message processes, second message is skipped (already processed)
+
+###############################################################################
+### Testing with curl (Alternative Method)
+###############################################################################
+
+# If you have a RabbitMQ HTTP API access, you can use curl:
+# 
+# curl -u guest:guest -X POST http://localhost:15672/api/exchanges/%2F/amq.default/publish \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "properties": {
+#       "delivery_mode": 2,
+#       "content_type": "application/json"
+#     },
+#     "routing_key": "email.queue",
+#     "payload": "{\"id\":\"msg-curl-001\",\"correlation_id\":\"curl-test-001\",\"recipient\":\"test@example.com\",\"template_id\":\"welcome_email\",\"variables\":{\"user_name\":\"Curl User\",\"company_name\":\"Test Corp\",\"email\":\"curl@example.com\"},\"priority\":\"normal\",\"retry_count\":0,\"scheduled_at\":\"2025-11-11T14:00:00Z\"}",
+#     "payload_encoding": "string"
+#   }'
+
+###############################################################################
+### Monitoring & Debugging
+###############################################################################
+
+# 1. Check Email Service Logs:
+#    docker-compose logs -f email-service
+#
+# 2. Check RabbitMQ Queues:
+#    - email.queue: Should show messages being consumed
+#    - notification.status.queue: Should show status messages being published
+#
+# 3. Monitor Redis for Idempotency:
+#    docker-compose exec redis redis-cli
+#    > KEYS email:processed:*
+#    > GET email:processed:msg-001
+#
+# 4. Check Worker Pool Activity:
+#    Look for "worker_id" in logs to see which worker processed which message
+#
+# 5. Circuit Breaker Status:
+#    - Check logs for "circuit breaker" messages
+#    - After 5 consecutive failures, circuit opens for 30 seconds
+#
+# 6. Retry Behavior:
+#    - Max 5 retry attempts
+#    - Exponential backoff: 1s, 2s, 4s, 8s, 16s
+#    - Check logs for "retry_attempt" and "backoff" messages
+
+###############################################################################
+### Performance Testing
+###############################################################################
+
+# Load Test: Publish 100 messages rapidly
+# Use a script or tool like:
+# - RabbitMQ PerfTest: rabbitmq-perf-test
+# - Custom script with amqp library
+# - k6 or similar load testing tool
+
+# Monitor:
+# - Worker pool handling (10 concurrent workers)
+# - Redis idempotency checks
+# - Template Service cache hits
+# - Email sending rate
+# - Error rate and circuit breaker activation
+
+###############################################################################
+### Integration Test Scenarios
+###############################################################################
+
+# Scenario 1: End-to-End Flow
+# 1. Create template via Template Service API
+# 2. Publish email message to RabbitMQ
+# 3. Email Service fetches template from Template Service (cache miss)
+# 4. Email Service renders template with variables
+# 5. Email Service sends via SMTP
+# 6. Status message published to notification.status.queue
+# 7. Second message uses cached template (cache hit)
+
+# Scenario 2: Failure and Retry
+# 1. Stop SMTP server or use invalid SMTP config
+# 2. Publish message
+# 3. Observe retry attempts in logs (5 attempts with exponential backoff)
+# 4. After max retries, message marked as failed
+# 5. Failed status published to notification.status.queue
+
+# Scenario 3: Circuit Breaker
+# 1. Cause 5 consecutive failures (invalid SMTP config)
+# 2. Circuit breaker opens (30 second timeout)
+# 3. New messages fail fast without retry
+# 4. After 30 seconds, circuit breaker tries half-open
+# 5. Successful send closes circuit breaker
+
+# Scenario 4: Idempotency
+# 1. Publish message with ID "msg-unique-001"
+# 2. Wait for processing to complete
+# 3. Publish same message again with same ID
+# 4. Second message skipped (logs show "already processed")
+# 5. Check Redis: email:processed:msg-unique-001 exists with 24h TTL
+
+###############################################################################
+### Configuration Testing
+###############################################################################
+
+# Test with different configurations:
+# 
+# SMTP Configuration:
+# - SMTP_HOST=smtp.gmail.com
+# - SMTP_PORT=587
+# - SMTP_USERNAME=your-email@gmail.com
+# - SMTP_PASSWORD=your-app-password
+# - EMAIL_PROVIDER=smtp
+#
+# SendGrid Configuration:
+# - SENDGRID_API_KEY=your-sendgrid-api-key
+# - EMAIL_PROVIDER=sendgrid
+#
+# Worker Configuration:
+# - WORKER_COUNT=5 (reduce for testing)
+# - WORKER_COUNT=20 (increase for load testing)
+#
+# Retry Configuration:
+# - MAX_RETRY_ATTEMPTS=3 (reduce retry attempts)
+# - RETRY_BACKOFF_BASE=2 (increase backoff multiplier)
+#
+# Circuit Breaker Configuration:
+# - CIRCUIT_BREAKER_THRESHOLD=3 (lower threshold)
+# - CIRCUIT_BREAKER_TIMEOUT=60 (longer timeout)
