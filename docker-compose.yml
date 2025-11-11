@@ -1,0 +1,93 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: notification-rabbitmq
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - notification-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: redis-cli ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - notification-network
+
+
+  rabbitmq-init:
+    image: node:18-alpine
+    container_name: notification-rabbitmq-init
+    working_dir: /app
+    volumes:
+      - ./infra/rabbitmq:/app/infra/rabbitmq
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+
+    command: >
+      sh -c "
+        echo 'Installing dependencies...' &&
+        npm ci &&
+        echo 'Initializing RabbitMQ queues...' &&
+        node infra/rabbitmq/init-rabbitmq.js &&
+        echo 'RabbitMQ initialization complete!'
+      "
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: "no"  # Only run once
+
+
+  api-gateway:
+    build:
+      context: ./api_gateway
+      dockerfile: Dockerfile
+    container_name: notification-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_URL=http://user-service:3001
+      - TEMPLATE_SERVICE_URL=http://template-service:3002
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:
+  redis-data:
+
+networks:
+  notification-network:
+    driver: bridge
+
