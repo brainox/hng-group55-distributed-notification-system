@@ -7,7 +7,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.core.db import async_session
 from app.utils.response import response
 
-router = APIRouter(prefix="/v1/auth", tags=["auth"])
+router = APIRouter(prefix="/v1/users", tags=["users"])
 
 async def get_db():
     async with async_session() as session:

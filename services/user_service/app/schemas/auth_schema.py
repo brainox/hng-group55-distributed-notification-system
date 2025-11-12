@@ -4,8 +4,8 @@ from uuid import UUID
 
 
 class UserPreference(BaseModel):
-    email: bool = True
-    push: bool = True
+    email: bool = False
+    push: bool = False
 
 
 class RegisterRequest(BaseModel):
@@ -37,3 +37,11 @@ class UserOut(BaseModel):
         "from_attributes": True,
         "populate_by_name": True
     }
+
+
+# ✅ New schema for updates
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    push_token: Optional[str] = None
+    preferences: Optional[UserPreference] = None
