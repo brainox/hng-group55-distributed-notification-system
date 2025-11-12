@@ -1,7 +1,4 @@
-"""Senders for FCM, OneSignal, and WebPush.
-Note: For FCM we suggest using 'firebase_admin' (optional). For WebPush we use 'pywebpush'.
-This module implements simple HTTP-based sending so you can adapt easily.
-"""
+#!/usr/bin/env python3
 
 import json
 import base64
@@ -18,7 +15,6 @@ class FCMSender:
         self.cred = credentials.Certificate(credential_path)
         initialize_app(self.cred)
         Logger.info("Initializing FCMSEnder complete")
-        
 
     async def send(
         self,
@@ -28,24 +24,26 @@ class FCMSender:
         image: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
         click_action: Optional[str] = None,
-    ) -> None:
+    ) -> bool:
         # Using firebase_admin SDK for sending
+        try:
+            payload = {
+                "title": title,
+                "body": body,
+            }
+            if image:
+                payload["image"] = image
+            if click_action:
+                payload["click_action"] = click_action
+            notification = messaging.Notification(**payload)
+            message = messaging.Message(
+                notification=notification,
+                data=data,
+                token=token,
+            )
 
-        payload = {
-            "title": title,
-            "body": body,
-        }
-        if image:
-            payload["image"] = image
-        if click_action:
-            payload["click_action"] = click_action
-        notification = messaging.Notification(**payload)
-        message = messaging.Message(
-            notification=notification,
-            data=payload["data"],
-            token=token,
-        )
-
-        await messaging.send_each_async([message])
-        
-    
+            await messaging.send_each_async([message])
+            Logger.info("FCM message sent to token: %s", token)
+            return True
+        except Exception as e:
+            return False

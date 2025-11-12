@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import enum
+from datetime import datetime, timezone
 
-from sqlmodel import Column, Integer, String, Enum, DateTime, func
-
-from .database import Base
+from pydantic import field_serializer
+from sqlmodel import SQLModel, String, func, Field
 
 
 class StatusEnum(str, enum.Enum):
@@ -12,13 +12,21 @@ class StatusEnum(str, enum.Enum):
     failed = "failed"
 
 
-class PushMessage(Base):
-    __tablename__ = "push_messages"
+class PushMessage(SQLModel, table=True):
+    __name__ = "push_messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String)
-    body = Column(String)
-    token = Column(String)
-    status = Column(Enum(StatusEnum), default=StatusEnum.pending)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    id: int = Field(default=None, primary_key=True)
+    title: str = Field(String)
+    body: str = Field(String)
+    token: str = Field(String)
+    status: StatusEnum = Field(default=StatusEnum.pending)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column_kwargs={"onupdate": func.now()},
+    )
+    retry_count: int = Field(default=0)
+
+    @field_serializer("created_at", "updated_at", when_used="always")
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()

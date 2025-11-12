@@ -11,7 +11,7 @@ def setup_logger() -> logging.Logger:
 
     class CustomFormatter(logging.Formatter):
         def format(self, record):
-            record.name = record.name.ljust(20)
+            record.name = record.name.ljust(0)
             return super().format(record)
 
     logger = logging.getLogger("push_service")
