@@ -3,6 +3,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 import asyncio
+import os
 
 # Import your Base metadata
 from app.core.db import Base
@@ -15,7 +16,8 @@ config = context.config
 fileConfig(config.config_file_name)
 target_metadata = Base.metadata
 
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@db:5432/users_db"
+# Get DATABASE_URL from environment variable, fallback to alembic.ini
+DATABASE_URL = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
 
 def run_migrations_offline():
     context.configure(

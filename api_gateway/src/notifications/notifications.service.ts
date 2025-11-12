@@ -29,26 +29,26 @@ export class NotificationsService {
         // Fetch user from User Service
         let recipient: string;
         let userName: string;
-        
+
         try {
             const userUrl = `${this.userServiceUrl}/v1/users/${dto.user_id}`;
             this.logger.log(`Fetching user from: ${userUrl}`);
-            
+
             const userResponse = await firstValueFrom(
                 this.httpService.get(userUrl)
             );
-            
+
             const user = userResponse.data.data;
-            
+
             // Check user preferences
             if (dto.notification_type === NotificationType.EMAIL && !user.preferences?.email) {
                 throw new BadRequestException('User has disabled email notifications');
             }
-            
+
             if (dto.notification_type === NotificationType.PUSH && !user.preferences?.push) {
                 throw new BadRequestException('User has disabled push notifications');
             }
-            
+
             // Get recipient based on notification type
             if (dto.notification_type === NotificationType.EMAIL) {
                 recipient = user.email;
@@ -61,16 +61,16 @@ export class NotificationsService {
                     throw new BadRequestException('User push token not configured');
                 }
             }
-            
+
             userName = user.full_name || user.name || 'User';
-            
+
             // Add user name to variables if not provided
             if (!dto.variables.name) {
                 dto.variables.name = userName;
             }
-            
+
             this.logger.log(`User fetched successfully: ${userName} (${recipient})`);
-            
+
         } catch (error) {
             if (error instanceof BadRequestException) {
                 throw error;
