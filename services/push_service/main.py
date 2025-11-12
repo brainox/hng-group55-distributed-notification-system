@@ -1,38 +1,36 @@
 #!/usr/bin/env python3
+import re
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import requests
 from sqlmodel import Session
-from fastapi import FastAPI, status, Depends
 from fastapi.responses import JSONResponse
+from fastapi import FastAPI, status, Depends
 from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from logger import Logger
 from service.senders import FCMSender
-from db.database import SessionLocal, get_db, init_db
-from service.queue import RabbitMQQueue
 from db.models import PushMessage, StatusEnum
+from db.database import SessionLocal, get_db, init_db
 from db.schema import PushMessageCreate, RootResponse
-
-queue: RabbitMQQueue
-background: BackgroundTasks
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
-    global queue
+    global queue, sender
 
     Logger.info("Initiated Lifespan async function")
-
-    queue = RabbitMQQueue(amqp_url="localhost:45672", queue_name="push_queue")
+    sender = FCMSender(
+        credential_path="distributed-systems-3349d-firebase-adminsdk-fbsvc-b84f851127.json"
+    )
 
     init_db()
 
     yield
 
-    queue.cleanup()
     Logger.info("Closing Lifespan async function")
 
 
@@ -91,12 +89,24 @@ async def health_check():
 async def send_fcm_notification(
     payload: PushMessageCreate, db: Session = Depends(get_db)
 ):
+    def render(template, context):
+        return re.sub(
+            r"{{\s*(\w+)\s*}}", lambda m: str(context.get(m.group(1), "")), template
+        )
+
     Logger.info("Received /send request with payload: %s", payload.model_dump())
     try:
+        template = ""
+
+        with requests.Session().get("") as req:
+            template = req.json()
+
+        user_data = payload.user.model_dump()
+
         new_msg = PushMessage(
             id=payload.id,
-            title=payload.title,
-            body=payload.body,
+            title=render(template.title, user_data),
+            body=render(template.body, user_data),
             token=payload.token,
             status=StatusEnum.pending,
         )
@@ -118,15 +128,7 @@ async def send_fcm_notification(
         db.commit()
         db.refresh(new_msg)
 
-        queue.push(
-            {
-                "provider": "fcm",
-                "id": new_msg.id,
-                "title": new_msg.title,
-                "body": new_msg.body,
-                "token": new_msg.token,
-            }
-        )
+        await sender.send(**new_msg.model_dump(mode="python"))
         response = RootResponse(
             success=True,
             data=new_msg,

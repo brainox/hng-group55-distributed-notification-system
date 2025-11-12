@@ -3,12 +3,17 @@ from typing import Optional, Any
 
 from pydantic import BaseModel
 
+class UserData(BaseModel):
+    name: str
+    link: str
+    meta: Optional[dict]
 
 class PushMessageCreate(BaseModel):
     id: int
     title: str
     body: str
     token: str
+    user: UserData
 
 
 class PushMessageResponse(BaseModel):

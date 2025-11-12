@@ -4,3 +4,4 @@ __pycache__/
 example_push_message.json
 distributed-systems-3349d-firebase-adminsdk-fbsvc-b84f851127.json
 *.db
+token.html

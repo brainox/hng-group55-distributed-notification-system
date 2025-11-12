@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "sqlite:///./push.db"  # or use PostgreSQL in production
+DATABASE_URL = "sqlite:///./push.db"
 
 engine = create_engine(
     DATABASE_URL, connect_args={"check_same_thread": False}, echo=True
@@ -21,4 +21,4 @@ def get_db():
 
 
 def init_db():
-    SQLModel.metadata.create_all(bind=engine)
+    SQLModel.metadata.create_all(bind=engine)  # type: ignore
