@@ -1,7 +1,16 @@
 FROM python:3.11-slim
+
 WORKDIR /app
+
+# Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir redis
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app code
 COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Make the script executable
+RUN chmod +x start.sh
+
+# Run migrations, then start FastAPI
+CMD ["./start.sh"]

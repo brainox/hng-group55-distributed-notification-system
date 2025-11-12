@@ -20,7 +20,7 @@ async def get_db():
 @router.post("", response_model=dict)
 async def create_user(
     payload: UserCreate,
-    idempotency_key: str | None = Header(None, alias="idempotency_key"),
+    
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(User).where(User.email == payload.email)
