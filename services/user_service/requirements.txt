@@ -17,5 +17,5 @@ pydantic[email]
 
 psycopg2-binary
 pytest
-redis
+
 
