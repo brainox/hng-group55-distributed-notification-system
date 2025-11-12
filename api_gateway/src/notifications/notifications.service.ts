@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { v4 as uuidv4 } from 'uuid';
+import { firstValueFrom } from 'rxjs';
 import { QueueService } from 'src/queue/queue.service';
 import { RedisService } from 'src/redis/redis.service';
 import { CreateNotificationDto, NotificationType } from './dto/create-notification.dto';
@@ -9,32 +11,73 @@ import { QueueMessage } from './interfaces/queue-message.interface';
 @Injectable()
 export class NotificationsService {
     private readonly logger = new Logger(NotificationsService.name);
+    private readonly userServiceUrl: string;
 
     constructor(
         private readonly queueService: QueueService,
         private readonly redisService: RedisService,
-    ) { }
+        private readonly httpService: HttpService,
+    ) {
+        this.userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+    }
 
     async createNotification(dto: CreateNotificationDto) {
         const notificationId = uuidv4();
-        // const correlationId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         this.logger.log(`Processing notification request: ${notificationId}`);
 
-        // TODO: Call User Service to get user email/push token
-        // const user = await this.getUserFromService(dto.user_id);
-        // recipient = dto.type === 'email' ? user.email : user.push_token;
-        // For now, recipient is mocked
-        const recipient = dto.notification_type === NotificationType.EMAIL
-            ? 'henshawknight@yahoo.com'
-            : 'fcm-token-mock-123';
-
-        this.logger.warn('Using mock recipient - integrate User Service');
-
-
-        // TODO: Get template from Template Service and render here
-        // For now, let Email Service fetch and render the template
-        // by NOT providing subject/body (only template_code and variables)
+        // Fetch user from User Service
+        let recipient: string;
+        let userName: string;
+        
+        try {
+            const userUrl = `${this.userServiceUrl}/v1/users/${dto.user_id}`;
+            this.logger.log(`Fetching user from: ${userUrl}`);
+            
+            const userResponse = await firstValueFrom(
+                this.httpService.get(userUrl)
+            );
+            
+            const user = userResponse.data.data;
+            
+            // Check user preferences
+            if (dto.notification_type === NotificationType.EMAIL && !user.preferences?.email) {
+                throw new BadRequestException('User has disabled email notifications');
+            }
+            
+            if (dto.notification_type === NotificationType.PUSH && !user.preferences?.push) {
+                throw new BadRequestException('User has disabled push notifications');
+            }
+            
+            // Get recipient based on notification type
+            if (dto.notification_type === NotificationType.EMAIL) {
+                recipient = user.email;
+                if (!recipient) {
+                    throw new BadRequestException('User email not found');
+                }
+            } else {
+                recipient = user.push_token;
+                if (!recipient) {
+                    throw new BadRequestException('User push token not configured');
+                }
+            }
+            
+            userName = user.full_name || user.name || 'User';
+            
+            // Add user name to variables if not provided
+            if (!dto.variables.name) {
+                dto.variables.name = userName;
+            }
+            
+            this.logger.log(`User fetched successfully: ${userName} (${recipient})`);
+            
+        } catch (error) {
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            this.logger.error(`Failed to fetch user: ${error.message}`);
+            throw new NotFoundException(`User with ID ${dto.user_id} not found`);
+        }
 
         // Create queue message without pre-rendered content
         // Email Service will fetch template from Template Service
