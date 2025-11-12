@@ -7,7 +7,7 @@ import { UpdateStatusDto } from './dto/update-status.dto';
 export class NotificationsController {
     constructor(private readonly notificationsService: NotificationsService){}
 
-    @Post('send')
+    @Post()
     @HttpCode(HttpStatus.OK)
     async sendNotification(@Body() dto: CreateNotificationDto) {
         return this.notificationsService.createNotification(dto);
