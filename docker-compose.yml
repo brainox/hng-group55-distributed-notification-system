@@ -58,7 +58,7 @@ services:
       - notification-network
     restart: "no" # Only run once
 
-  # PostgreSQL for Template Service
+  # PostgreSQL for Template Service and User Service
   postgres:
     image: postgres:15-alpine
     container_name: notification-postgres
@@ -70,6 +70,7 @@ services:
       POSTGRES_DB: template_db
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./services/user_service/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
       test: pg_isready -U postgres
       interval: 10s
@@ -144,6 +145,29 @@ services:
       - notification-network
     restart: unless-stopped
 
+  # User Service
+  user-service:
+    build:
+      context: ./services/user_service
+      dockerfile: Dockerfile
+    container_name: notification-user-service
+    ports:
+      - "3001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/users_db
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey123456789}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
   api-gateway:
     build:
       context: ./api_gateway
@@ -156,7 +180,7 @@ services:
       - PORT=3000
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
       - REDIS_URL=redis://redis:6379
-      - USER_SERVICE_URL=http://user-service:3001
+      - USER_SERVICE_URL=http://user-service:8000
       - TEMPLATE_SERVICE_URL=http://template-service:8081
     depends_on:
       rabbitmq:
@@ -164,6 +188,8 @@ services:
       redis:
         condition: service_healthy
       template-service:
+        condition: service_started
+      user-service:
         condition: service_started
     networks:
       - notification-network
