@@ -30,14 +30,16 @@ def create_access_token(*, subject: str):
 def verify_token(token: str) -> UUID:
     """Verify JWT token and return user_id"""
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=settings.jwt_algorithm)
+        if token.startswith("Bearer "):
+            token = token.split(" ")[1]
+
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id: str = payload.get("sub")
-        print(payload, user_id)
-        
-        if user_id is None:
+
+        if not user_id:
             raise JWTError("Invalid token payload")
-        
+
         return UUID(user_id)
-        
+
     except JWTError as e:
         raise Exception(f"Token verification failed: {str(e)}")

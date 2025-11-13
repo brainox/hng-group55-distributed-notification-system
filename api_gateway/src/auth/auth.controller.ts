@@ -4,7 +4,7 @@ import { AuthGuard } from './auth.guard';
 
 @Controller()
 export class AuthController {
-  private readonly userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:8000';
+  private readonly userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
 
   // Register - No auth required
   @Post('users/register')

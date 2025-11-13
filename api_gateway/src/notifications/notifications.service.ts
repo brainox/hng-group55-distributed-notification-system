@@ -18,7 +18,7 @@ export class NotificationsService {
         private readonly redisService: RedisService,
         private readonly httpService: HttpService,
     ) {
-        this.userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:8000';
+        this.userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
     }
 
     async createNotification(dto: CreateNotificationDto, user: any) {

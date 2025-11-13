@@ -47,7 +47,12 @@ services:
       sh -c "
         echo 'Installing dependencies...' &&
         npm ci &&
-        echo 'Initializing RabbitMQ queues...' &&
+        echo 'Waiting for RabbitMQ to be ready...' &&
+        until nc -z rabbitmq 5672; do
+          echo 'RabbitMQ not ready, sleeping...'
+          sleep 2
+        done &&
+        echo 'RabbitMQ ready, initializing queues...' &&
         node infra/rabbitmq/init-rabbitmq.js &&
         echo 'RabbitMQ initialization complete!'
       "
