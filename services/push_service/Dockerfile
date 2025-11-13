@@ -1,8 +1,8 @@
-# syntax=docker/dockerfile:1
+
 
 FROM python:3.11-slim
 
-WORKDIR /code
+WORKDIR /app
 
 # Copy dependencies first for Docker layer caching
 COPY requirements.txt .
@@ -15,4 +15,5 @@ COPY . .
 EXPOSE 8000
 
 # Default command (can be overridden by docker-compose)
-CMD ["bash"]
+CMD ["uvicorn", "app.main:app", "--host", "]
+
