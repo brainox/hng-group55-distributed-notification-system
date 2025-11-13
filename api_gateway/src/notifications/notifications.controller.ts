@@ -1,16 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards, Request } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { AuthGuard } from '../auth/auth.guard';
 
 @Controller('notifications')
 export class NotificationsController {
     constructor(private readonly notificationsService: NotificationsService){}
 
     @Post()
+    @UseGuards(AuthGuard)
     @HttpCode(HttpStatus.OK)
-    async sendNotification(@Body() dto: CreateNotificationDto) {
-        return this.notificationsService.createNotification(dto);
+    async sendNotification(@Body() dto: CreateNotificationDto, @Request() req: any) {
+        console.log('Authenticated user:', req.user);
+        return this.notificationsService.createNotification(dto, req.user);
     }
 
 
@@ -24,7 +27,8 @@ export class NotificationsController {
     }
 
     @Get(':id/status')
-    async getStatus(@Param('id') id: string) {
-        return this.notificationsService.getNotificationStatus(id);
+    @UseGuards(AuthGuard)
+    async getStatus(@Param('id') id: string, @Request() req: any) {
+        return this.notificationsService.getNotificationStatus(id, req.user);
     }
 }

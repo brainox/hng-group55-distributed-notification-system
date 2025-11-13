@@ -47,7 +47,12 @@ services:
       sh -c "
         echo 'Installing dependencies...' &&
         npm ci &&
-        echo 'Initializing RabbitMQ queues...' &&
+        echo 'Waiting for RabbitMQ to be ready...' &&
+        until nc -z rabbitmq 5672; do
+          echo 'RabbitMQ not ready, sleeping...'
+          sleep 2
+        done &&
+        echo 'RabbitMQ ready, initializing queues...' &&
         node infra/rabbitmq/init-rabbitmq.js &&
         echo 'RabbitMQ initialization complete!'
       "
@@ -58,7 +63,7 @@ services:
       - notification-network
     restart: "no" # Only run once
 
-  # PostgreSQL for Template Service and User Service
+  # PostgreSQL for Template Service
   postgres:
     image: postgres:15-alpine
     container_name: notification-postgres
@@ -70,7 +75,7 @@ services:
       POSTGRES_DB: template_db
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./services/user_service/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      # - ./services/user_service/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
       test: pg_isready -U postgres
       interval: 10s
@@ -79,6 +84,30 @@ services:
       start_period: 30s
     networks:
       - notification-network
+
+  
+   # User Service Database
+  user-db:
+    image: postgres:15
+    container_name: notification-user-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: users_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - notification-network
+
 
   # Template Service
   template-service:
@@ -153,15 +182,15 @@ services:
       dockerfile: Dockerfile
     container_name: notification-user-service
     ports:
-      - "3001:8000"
+      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/users_db
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@user-db:5432/users_db
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:-supersecretkey123456789}
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
     depends_on:
-      postgres:
+      user-db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -200,6 +229,7 @@ volumes:
   rabbitmq-data:
   redis-data:
   postgres-data:
+  user-db-data:
 
 
 networks:
