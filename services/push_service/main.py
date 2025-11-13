@@ -95,62 +95,65 @@ async def send_fcm_notification(
         )
 
     Logger.info("Received /send request with payload: %s", payload.model_dump())
-    # try:
-    template = "{{name}}"
+    try:
+        template = ""
 
-    # with requests.Session().get("") as req:
-    # template = req.json()
+        with requests.Session().get("") as req:
+            template = req.json()
 
-    user_data = payload.user.model_dump()
+        user_data = payload.user.model_dump()
 
-    new_msg = PushMessage(
-        id=payload.id,
-        title=render(template, user_data),
-        body=render(template, user_data),
-        token=payload.token,
-        status=StatusEnum.pending,
-    )
-    if not new_msg.token.strip():
-        raise ValueError("Token is required")
-    if not new_msg.title.strip():
-        raise ValueError("Title is required")
-    if not new_msg.body.strip():
-        raise ValueError("Body is required")
-    if not new_msg.id:
-        raise ValueError("ID is required")
-    if db is None:
-        raise RuntimeError("Database session is not available")
-    if new_msg is None:
-        raise RuntimeError("Failed to create PushMessage instance")
-    if db.get(PushMessage, new_msg.id):
-        raise ValueError(f"PushMessage with ID {new_msg.id} already exists")
-    db.add(new_msg)
-    db.commit()
-    db.refresh(new_msg)
-    data = new_msg.model_dump()
-    sender.send(**data)
-    response = RootResponse(
-        success=True,
-        data=new_msg,
-        error=None,
-        message="Health Check OK",
-        meta=None,
-    )
+        new_msg = PushMessage(
+            id=payload.id,
+            title=render(template, user_data),
+            body=render(template, user_data),
+            token=payload.token,
+            status=StatusEnum.pending,
+        )
+        if not new_msg.token.strip():
+            raise ValueError("Token is required")
+        if not new_msg.title.strip():
+            raise ValueError("Title is required")
+        if not new_msg.body.strip():
+            raise ValueError("Body is required")
+        if not new_msg.id:
+            raise ValueError("ID is required")
+        if db is None:
+            raise RuntimeError("Database session is not available")
+        if new_msg is None:
+            raise RuntimeError("Failed to create PushMessage instance")
+        if db.get(PushMessage, new_msg.id):
+            raise ValueError(f"PushMessage with ID {new_msg.id} already exists")
+        db.add(new_msg)
+        db.commit()
+        db.refresh(new_msg)
+        data = new_msg.model_dump()
+        if not sender.send(**data):
+            raise Exception("Failed to send FCM notification")
+        response = RootResponse(
+            success=True,
+            data=new_msg,
+            error=None,
+            message="Health Check OK",
+            meta=None,
+        )
 
-    return JSONResponse(content=response.model_dump(), status_code=status.HTTP_200_OK)
-    # except Exception as e:
-    #     Logger.error("Error in /send: %s", str(e))
-    #     response = RootResponse(
-    #         success=False,
-    #         data=None,
-    #         error=str(e),
-    #         message="Failed to send notification",
-    #         meta=None,
-    #     )
-    #     return JSONResponse(
-    #         content=response.model_dump(),
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #     )
+        return JSONResponse(
+            content=response.model_dump(), status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        Logger.error("Error in /send: %s", str(e))
+        response = RootResponse(
+            success=False,
+            data=None,
+            error=str(e),
+            message="Failed to send notification",
+            meta=None,
+        )
+        return JSONResponse(
+            content=response.model_dump(),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @app.get("/notifications", tags=["FCM"], response_model=RootResponse)

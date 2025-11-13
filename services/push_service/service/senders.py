@@ -59,7 +59,7 @@ class FCMSender:
         image: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
         click_action: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> bool:
         # Using firebase_admin SDK for sending
         try:
@@ -75,7 +75,7 @@ class FCMSender:
             message = messaging.Message(
                 notification=notification,
                 data=data,
-                token="dzDb0j4TXhQlO8TTuRocgh:APA91bHK7VQyE7Cf2IZs7gIUmkDoFiucCSe1Qzj5D975SK1jJbqIT5yaWSDCdI7EaET887_l0UPPf1XZqBB3ArM2r1cur0fjQIF-6kP2MCVq7H9p9B74DGI",
+                token=token,
             )
 
             messaging.send(message)
