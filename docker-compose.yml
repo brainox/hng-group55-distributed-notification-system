@@ -1,0 +1,249 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: notification-rabbitmq
+    ports:
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - notification-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: redis-cli ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - notification-network
+
+  rabbitmq-init:
+    image: node:18-alpine
+    container_name: notification-rabbitmq-init
+    working_dir: /app
+    volumes:
+      - ./infra/rabbitmq:/app/infra/rabbitmq
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+
+    command: >
+      sh -c "
+        echo 'Installing dependencies...' &&
+        npm ci &&
+        echo 'Waiting for RabbitMQ to be ready...' &&
+        until nc -z rabbitmq 5672; do
+          echo 'RabbitMQ not ready, sleeping...'
+          sleep 2
+        done &&
+        echo 'RabbitMQ ready, initializing queues...' &&
+        node infra/rabbitmq/init-rabbitmq.js &&
+        echo 'RabbitMQ initialization complete!'
+      "
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: "no" # Only run once
+
+  # Template Service with embedded PostgreSQL
+  # Each service's database is defined here for full system integration
+  # For independent development, use: cd services/template_service && docker-compose up
+  template-db:
+    image: postgres:15-alpine
+    container_name: notification-template-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: template_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - template-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-network
+
+  template-service:
+    build:
+      context: ./services/template_service
+      dockerfile: Dockerfile
+    container_name: notification-template-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - LOG_LEVEL=info
+      - ENV=production
+      - DATABASE_URL=postgres://postgres:postgres@template-db:5432/template_db?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - CACHE_TTL=600
+    depends_on:
+      template-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+  # Email Service
+  email-service:
+    build:
+      context: ./services/email_service
+      dockerfile: Dockerfile
+    container_name: notification-email-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVER_PORT=8082
+      - LOG_LEVEL=info
+      - ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - EMAIL_QUEUE=email.queue
+      - STATUS_QUEUE=email.status
+      - EMAIL_WORKERS=3
+      - TEMPLATE_SERVICE_URL=http://template-service:8081
+      - REDIS_URL=redis:6379
+      # Email Provider - Using SMTP (configure with your credentials)
+      - EMAIL_PROVIDER=smtp
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USER:-your-email@gmail.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-your-app-password}
+      - SMTP_FROM=${SMTP_FROM:-noreply@yourcompany.com}
+      # Retry Configuration
+      - MAX_RETRY_ATTEMPTS=5
+      - RETRY_BASE_DELAY=1s
+      # Circuit Breaker
+      - CIRCUIT_BREAKER_THRESHOLD=5
+      - CIRCUIT_BREAKER_TIMEOUT=30s
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      template-service:
+        condition: service_started
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+  # User Service with embedded PostgreSQL
+  # Each service's database is defined here for full system integration
+  # For independent development, use: cd services/user_service && docker-compose up
+  user-db:
+    image: postgres:15-alpine
+    container_name: notification-user-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: users_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - user-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-network
+
+  user-service:
+    build:
+      context: ./services/user_service
+      dockerfile: Dockerfile
+    container_name: notification-user-service
+    ports:
+      - "3001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@user-db:5432/users_db
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey123456789}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+    depends_on:
+      user-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+  push_service:
+    build:
+      context: ./services/user_service
+      dockerfile: Dockerfile
+    container_name: notification-push-service
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/users_db
+    volumes:
+      - .:/app
+
+  api-gateway:
+    build:
+      context: ./api_gateway
+      dockerfile: Dockerfile
+    container_name: notification-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_URL=http://user-service:8000
+      - TEMPLATE_SERVICE_URL=http://template-service:8081
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      template-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:
+  redis-data:
+  template-postgres-data:
+  user-postgres-data:
+
+networks:
+  notification-network:
+    driver: bridge
