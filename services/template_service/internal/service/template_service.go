@@ -46,7 +46,7 @@ func NewTemplateService(
 	}
 }
 
-func (s *templateService) CreateTemplate(ctx context.Context, req models.CreateTemplateRequest) (*models.TemplateResponse, error) {
+func (templateService *templateService) CreateTemplate(ctx context.Context, req models.CreateTemplateRequest) (*models.TemplateResponse, error) {
 	// Set defaults
 	if req.Language == "" {
 		req.Language = "en"
@@ -79,7 +79,7 @@ func (s *templateService) CreateTemplate(ctx context.Context, req models.CreateT
 		IsActive:     true,
 	}
 
-	if err := s.templateRepo.Create(ctx, template); err != nil {
+	if err := templateService.templateRepo.Create(ctx, template); err != nil {
 		return nil, fmt.Errorf("failed to create template: %w", err)
 	}
 
@@ -95,7 +95,7 @@ func (s *templateService) CreateTemplate(ctx context.Context, req models.CreateT
 		CreatedBy:     "system",
 	}
 
-	if err := s.versionRepo.Create(ctx, version); err != nil {
+	if err := templateService.versionRepo.Create(ctx, version); err != nil {
 		return nil, fmt.Errorf("failed to create version: %w", err)
 	}
 
@@ -105,13 +105,13 @@ func (s *templateService) CreateTemplate(ctx context.Context, req models.CreateT
 	}, nil
 }
 
-func (s *templateService) GetTemplateByID(ctx context.Context, id uuid.UUID, language string, version string) (*models.TemplateResponse, error) {
+func (templateService *templateService) GetTemplateByID(ctx context.Context, id uuid.UUID, language string, version string) (*models.TemplateResponse, error) {
 	if language == "" {
 		language = "en"
 	}
 
 	// Get template
-	template, err := s.templateRepo.GetByID(ctx, id)
+	template, err := templateService.templateRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -119,10 +119,10 @@ func (s *templateService) GetTemplateByID(ctx context.Context, id uuid.UUID, lan
 	// Get version
 	var templateVersion *models.TemplateVersion
 	if version == "latest" || version == "" {
-		templateVersion, err = s.versionRepo.GetPublished(ctx, id, language)
+		templateVersion, err = templateService.versionRepo.GetPublished(ctx, id, language)
 	} else {
 		// For specific version, would need version number parsing
-		templateVersion, err = s.versionRepo.GetPublished(ctx, id, language)
+		templateVersion, err = templateService.versionRepo.GetPublished(ctx, id, language)
 	}
 
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *templateService) GetTemplateByID(ctx context.Context, id uuid.UUID, lan
 	}, nil
 }
 
-func (s *templateService) GetTemplateByKey(ctx context.Context, key string, language string, version string) (*models.TemplateResponse, error) {
+func (templateService *templateService) GetTemplateByKey(ctx context.Context, key string, language string, version string) (*models.TemplateResponse, error) {
 	if language == "" {
 		language = "en"
 	}
@@ -144,19 +144,19 @@ func (s *templateService) GetTemplateByKey(ctx context.Context, key string, lang
 	}
 
 	// Check cache first
-	cached, err := s.cache.GetTemplate(ctx, key, language, version)
+	cached, err := templateService.cache.GetTemplate(ctx, key, language, version)
 	if err == nil && cached != nil {
 		return cached, nil
 	}
 
 	// Get template
-	template, err := s.templateRepo.GetByKey(ctx, key)
+	template, err := templateService.templateRepo.GetByKey(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get published version
-	templateVersion, err := s.versionRepo.GetPublished(ctx, template.ID, language)
+	templateVersion, err := templateService.versionRepo.GetPublished(ctx, template.ID, language)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (s *templateService) GetTemplateByKey(ctx context.Context, key string, lang
 	}
 
 	// Cache the result
-	_ = s.cache.SetTemplate(ctx, key, language, version, response, s.cacheTTL)
+	_ = templateService.cache.SetTemplate(ctx, key, language, version, response, templateService.cacheTTL)
 
 	return response, nil
 }

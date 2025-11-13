@@ -47,12 +47,7 @@ services:
       sh -c "
         echo 'Installing dependencies...' &&
         npm ci &&
-        echo 'Waiting for RabbitMQ to be ready...' &&
-        until nc -z rabbitmq 5672; do
-          echo 'RabbitMQ not ready, sleeping...'
-          sleep 2
-        done &&
-        echo 'RabbitMQ ready, initializing queues...' &&
+        echo 'Initializing RabbitMQ queues...' &&
         node infra/rabbitmq/init-rabbitmq.js &&
         echo 'RabbitMQ initialization complete!'
       "
@@ -63,53 +58,28 @@ services:
       - notification-network
     restart: "no" # Only run once
 
-  # PostgreSQL for Template Service
-  postgres:
+  # Template Service with embedded PostgreSQL
+  # Each service's database is defined here for full system integration
+  # For independent development, use: cd services/template_service && docker-compose up
+  template-db:
     image: postgres:15-alpine
-    container_name: notification-postgres
-    ports:
-      - "5432:5432"
+    container_name: notification-template-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: template_db
+    ports:
+      - "5433:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      # - ./services/user_service/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - template-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: pg_isready -U postgres
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 5
     networks:
       - notification-network
 
-  
-   # User Service Database
-  user-db:
-    image: postgres:15
-    container_name: notification-user-db
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: users_db
-    ports:
-      - "5433:5432"
-    volumes:
-      - user-db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 2s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - notification-network
-
-
-  # Template Service
   template-service:
     build:
       context: ./services/template_service
@@ -121,11 +91,11 @@ services:
       - SERVER_PORT=8081
       - LOG_LEVEL=info
       - ENV=production
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/template_db?sslmode=disable
+      - DATABASE_URL=postgres://postgres:postgres@template-db:5432/template_db?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - CACHE_TTL=600
     depends_on:
-      postgres:
+      template-db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -175,14 +145,35 @@ services:
       - notification-network
     restart: unless-stopped
 
-  # User Service
+  # User Service with embedded PostgreSQL
+  # Each service's database is defined here for full system integration
+  # For independent development, use: cd services/user_service && docker-compose up
+  user-db:
+    image: postgres:15-alpine
+    container_name: notification-user-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: users_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - user-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-network
+
   user-service:
     build:
       context: ./services/user_service
       dockerfile: Dockerfile
     container_name: notification-user-service
     ports:
-      - "8000:8000"
+      - "3001:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@user-db:5432/users_db
       - REDIS_URL=redis://redis:6379
@@ -228,9 +219,8 @@ services:
 volumes:
   rabbitmq-data:
   redis-data:
-  postgres-data:
-  user-db-data:
-
+  template-postgres-data:
+  user-postgres-data:
 
 networks:
   notification-network:
