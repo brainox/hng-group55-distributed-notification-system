@@ -52,11 +52,17 @@ func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
 		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
 
+	// Don't defer conn.Close() here - connection needs to stay open for consumer lifetime
+	// It will be closed in Stop() method along with the channel
+
 	channel, err := conn.Channel()
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
+
+	// Don't defer channel close either - both stay open for consumer lifetime
+	// Both will be closed in Stop() method
 
 	// Set QoS to process one message at a time per worker
 	err = channel.Qos(
@@ -147,15 +153,18 @@ func (c *Consumer) worker(id int, msgs <-chan amqp.Delivery) {
 				logger.Log.Info("message channel closed", zap.Int("worker_id", id))
 				return
 			}
+			logger.Log.Info("worker received message", zap.Int("worker_id", id), zap.Int("body_size", len(msg.Body)))
 			c.processMessage(msg)
 		}
 	}
 }
 
 func (c *Consumer) processMessage(delivery amqp.Delivery) {
+	logger.Log.Info("processMessage called", zap.String("body", string(delivery.Body)))
+	
 	var emailMsg models.EmailMessage
 	if err := json.Unmarshal(delivery.Body, &emailMsg); err != nil {
-		logger.Log.Error("failed to unmarshal message", zap.Error(err))
+		logger.Log.Error("failed to unmarshal message", zap.Error(err), zap.String("raw_body", string(delivery.Body)))
 		delivery.Nack(false, false) // Don't requeue invalid messages
 		return
 	}
