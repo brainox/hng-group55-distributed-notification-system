@@ -6,6 +6,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queue/queue.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -15,7 +16,8 @@ import { HealthModule } from './health/health.module';
     NotificationsModule,
     QueueModule,
     RedisModule,
-    HealthModule
+    HealthModule,
+    AuthModule
   ],
   controllers: [AppController],
   providers: [AppService],

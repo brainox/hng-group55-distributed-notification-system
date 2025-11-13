@@ -21,7 +21,7 @@ export class NotificationsService {
         this.userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
     }
 
-    async createNotification(dto: CreateNotificationDto) {
+    async createNotification(dto: CreateNotificationDto, user: any) {
         const notificationId = uuidv4();
 
         this.logger.log(`Processing notification request: ${notificationId}`);
@@ -157,7 +157,7 @@ export class NotificationsService {
         };
     }
 
-    async getNotificationStatus(notificationId: string) {
+    async getNotificationStatus(notificationId: string, user: any) {
         const status = await this.redisService.getNotificationStatus(notificationId);
 
         if (!status) {
