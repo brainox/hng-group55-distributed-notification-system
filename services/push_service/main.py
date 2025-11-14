@@ -105,8 +105,8 @@ async def send_fcm_notification(
 
         new_msg = PushMessage(
             id=payload.id,
-            title=render(template.title, user_data),
-            body=render(template.body, user_data),
+            title=render(template, user_data),
+            body=render(template, user_data),
             token=payload.token,
             status=StatusEnum.pending,
         )
@@ -127,8 +127,9 @@ async def send_fcm_notification(
         db.add(new_msg)
         db.commit()
         db.refresh(new_msg)
-
-        await sender.send(**new_msg.model_dump(mode="python"))
+        data = new_msg.model_dump()
+        if not sender.send(**data):
+            raise Exception("Failed to send FCM notification")
         response = RootResponse(
             success=True,
             data=new_msg,

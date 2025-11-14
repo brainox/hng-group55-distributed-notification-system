@@ -22,12 +22,12 @@ def retry(max_retries=3, delay=2):
             ...
     """
 
-    async def decorator(func):
+    def decorator(func):
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             for attempt in range(1, max_retries + 1):
                 try:
-                    return await func(*args, **kwargs)
+                    return func(*args, **kwargs)
                 except Exception as e:
                     Logger.warning(
                         f"[Retry {attempt}/{max_retries}] {func.__name__} failed: {e}"
@@ -51,7 +51,7 @@ class FCMSender:
         Logger.info("Initializing FCMSEnder complete")
 
     @retry(max_retries=3, delay=2)
-    async def send(
+    def send(
         self,
         token: str,
         title: str,
@@ -59,6 +59,7 @@ class FCMSender:
         image: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
         click_action: Optional[str] = None,
+        **kwargs,
     ) -> bool:
         # Using firebase_admin SDK for sending
         try:
@@ -77,7 +78,7 @@ class FCMSender:
                 token=token,
             )
 
-            await messaging.send_each_async([message])
+            messaging.send(message)
             Logger.info("FCM message sent to token: %s", token)
             return True
         except Exception as e:
